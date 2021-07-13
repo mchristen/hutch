@@ -10,7 +10,7 @@ module Hutch
       end
 
       def self.decode(payload)
-        ::MultiJson.load(payload).with_indifferent_access
+        ::MultiJson.load(payload)
       end
 
       def self.binary? ; false ; end
