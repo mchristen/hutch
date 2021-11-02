@@ -11,6 +11,7 @@ module Hutch
     include Logging
 
     def initialize(broker, consumers, setup_procs)
+      @consumer_instances     = {}
       @broker        = broker
       self.consumers = consumers
       self.setup_procs = setup_procs
@@ -49,8 +50,12 @@ module Hutch
 
       queue = @broker.queue(consumer.get_queue_name, consumer.get_arguments)
       @broker.bind_queue(queue, consumer.routing_keys)
-
-      queue.subscribe(consumer_tag: unique_consumer_tag, manual_ack: true) do |*args|
+      consumer_tag = unique_consumer_tag
+      @consumer_instances[consumer_tag] = consumer.new.tap { |c| c.broker = @broker }
+      # This manual_ack flag is not indicative of the Consumers auto/manual ack status
+      # this is so that Hutch can manually automatically ack your messages and do some
+      # basic erroc handling
+      queue.subscribe(consumer_tag: consumer_tag, manual_ack: true) do |*args|
         delivery_info, properties, payload = Hutch::Adapter.decode_message(*args)
         handle_message(consumer, delivery_info, properties, payload)
       end
@@ -67,11 +72,10 @@ module Hutch
         "consumer: #{consumer}, " +
         "payload: #{spec}"
       }
-
+      consumer_instance = @consumer_instances[delivery_info.consumer_tag]
       message = Message.new(delivery_info, properties, payload, serializer)
-      consumer_instance = consumer.new.tap { |c| c.broker, c.delivery_info = @broker, delivery_info }
       with_tracing(consumer_instance).handle(message)
-      @broker.ack(delivery_info.delivery_tag)
+      @broker.ack(delivery_info.delivery_tag) unless consumer.is_manual_ack
     rescue => ex
       acknowledge_error(delivery_info, properties, @broker, ex)
       handle_error(properties, payload, consumer, ex)

@@ -32,9 +32,14 @@ module Hutch
         # these are opt-in
         @queue_mode = nil
         @queue_type = nil
+        @manual_ack = false
       end
 
-      attr_reader :queue_mode, :queue_type, :initial_group_size
+      attr_reader :queue_mode, :queue_type, :initial_group_size, :is_manual_ack
+
+      def manual_ack
+        @is_manual_ack = true
+      end
 
       # Explicitly set the queue name
       def queue_name(name)
